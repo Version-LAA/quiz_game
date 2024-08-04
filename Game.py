@@ -1,9 +1,12 @@
 """
 Game class to represent a game.
 """
-from Quiz import Quiz
+from Quiz import Quiz,QUIZ_CATEGORIES
 from Player import Player
 import random
+import csv
+import os
+from datetime import date
 class Game:
     def __init__(self):
         self.players = {}
@@ -28,16 +31,29 @@ class Game:
     def check_winner(self):
         return False
 
-    def play_game(self):
+    def play_game(self,cat,lev):
         found_winner = False
         player_num = 1
         question_num = 1
         while found_winner is False:
             while player_num <= 2:
+                opponent = self.players[2] if player_num == 1 else self.players[1]
                 question = self.ask_question()
                 current_player = self.players[player_num]
-                print(f"\nPlayer {player_num} ({current_player.name}) - Current Points: {current_player.points} \n")
-                print(f"Question({question_num}): {question['question']['text']}\n")
+                if current_player.points == 2:
+
+                    print(f"\n*[CURRENT PLAYER] Player{player_num} ({current_player.name}) - Score:[ {current_player.points} ] [** MATCH POINT **]\n")
+                else:
+                    print(f"\n*[CURRENT PLAYER] Player{player_num} ({current_player.name}) - Score:[ {current_player.points} ]\n")
+
+                if opponent.points == 2:
+
+                    print(f"Player2 ({opponent.name}) Score: [ {opponent.points} ] [** MATCH POINT **]\n")
+                else:
+                    print(f"Player2 ({opponent.name}) Score: [ {opponent.points} ]\n")
+
+                print("---------------------------------------------")
+                print(f"\nQuestion({question_num}): {question['question']['text']}\n")
                 options_ls = [question['correctAnswer']] + question['incorrectAnswers']
                 random.shuffle(options_ls)
                 print("Pick an option from below:")
@@ -47,11 +63,20 @@ class Game:
                 result = self.check_answer(question,options_ls[choice-1])
                 if result:
                     current_player.points += 1
-                if current_player.points == 4:
+                if current_player.points == 3:
                     found_winner = True
                     print(f"\n CONGRATULATIONS - {current_player.name} you WON!")
                     print(f"\n Final score: ") # [TODO] - ADD SCORES
                     # [TODO] - WRITE TO DATABASE
+                    stats = {
+                        'date':date.today(),
+                        'p1':self.players[1].name,
+                        'p2':self.players[2].name,
+                        'category':QUIZ_CATEGORIES[int(cat)],
+                        'level':lev,
+                        'winner':current_player.name
+                    }
+                    self.write_db(stats)
                     break
                 player_num += 1
             player_num = 1
@@ -69,13 +94,37 @@ class Game:
         return False
 
     def reset_game(self):
-        for player in self.players: player.points = 0
+        for player in self.players: self.players[player].points = 0
 
-    def rematch(self):
-        pass
 
-    def write_db(self):
-        pass
+    def write_db(self,log):
+        headers = ['date','p1','p2','category','level','winner']
+        if os.path.exists('gamedb.csv'):
+            with open('gamedb.csv','a') as csvfile:
+                writer = csv.DictWriter(csvfile,fieldnames=headers)
+                writer.writerow(log)
+        else:
+            with open('gamedb.csv','w') as csvfile:
+                writer = csv.DictWriter(csvfile,fieldnames=headers)
+                writer.writeheader()
+                writer.writerow(log)
+
 
     def read_db(self):
-        pass
+         headers = ['date','p1','p2','category','level','winner']
+         hist = []
+         if os.path.exists('gamedb.csv'):
+            with open('gamedb.csv','r') as csvfile:
+                reader = csv.DictReader(csvfile,fieldnames=headers)
+                for r in reader:
+                    hist.append(r)
+         else:
+           print("No history!")
+         return hist
+
+    def print_hist(self):
+        history = self.read_db()
+        print("** HISTORICAL MATCHUPS **")
+        print("-------------------------\n")
+        for h in history[1:]:
+            print(f"* {h['date']} P1({h['p1']}) vs. P2({h['p2']}) Cat:({h['category']}) Lvl: ({h['level']}) WINNER(** {h['winner']} **)\n")
